@@ -315,7 +315,7 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         }
         listener.getLogger().println("Allure report was successfully generated.");
         saveAllureArtifact(run, workspace, listener);
-        AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(run, reportPath.getName()));
+        AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(reportPath, listener.getLogger()), reportPath.toURI().getPath()); //FilePathUtils.extractSummary(reportPath, listener.getLogger())
         buildAction.setReportPath(reportPath);
         run.addAction(buildAction);
         run.setResult(buildAction.getBuildSummary().getResult());
@@ -326,6 +326,7 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         listener.getLogger().println("Creating artifact for the build.");
         final File artifactsDir = run.getArtifactsDir();
         artifactsDir.mkdirs();
+        listener.getLogger().println("");
         final File archive = new File(artifactsDir, REPORT_ARCHIVE_NAME);
         final File tempArchive = new File(archive.getAbsolutePath() + ".writing.zip");
         final FilePath reportPath = workspace.child(getReport());

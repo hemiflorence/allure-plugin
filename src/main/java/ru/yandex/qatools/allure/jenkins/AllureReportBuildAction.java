@@ -15,6 +15,7 @@ import jenkins.model.lazy.LazyBuildMixIn;
 import jenkins.tasks.SimpleBuildStep;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.CategoryDataset;
+import org.jfree.util.Log;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
@@ -22,14 +23,19 @@ import ru.yandex.qatools.allure.jenkins.utils.BuildSummary;
 import ru.yandex.qatools.allure.jenkins.utils.ChartUtils;
 import ru.yandex.qatools.allure.jenkins.utils.FilePathUtils;
 
+import javax.mail.Folder;
 import javax.servlet.ServletException;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.logging.Logger;
 
 /**
  * {@link Action} that serves allure report from archive directory on master of a given build.
@@ -44,9 +50,17 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
 
     private String reportPath;
 
+    private String fullReportPath;
+
     AllureReportBuildAction(final BuildSummary buildSummary) {
         this.buildSummary = new WeakReference<>(buildSummary);
         this.reportPath = "allure-report";
+    }
+
+    AllureReportBuildAction(final BuildSummary buildSummary, String fullReportPath) {
+        this.buildSummary = new WeakReference<>(buildSummary);
+        this.reportPath = "allure-report";
+        this.fullReportPath = fullReportPath;
     }
 
     private String getReportPath() {
@@ -55,6 +69,13 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
 
     public void setReportPath(FilePath reportPath) {
         this.reportPath = reportPath.getName();
+    }
+
+    private String getFullReportPath() {
+        return this.fullReportPath == null ? "allure-report" : this.fullReportPath;
+    }
+    public void setFullReportPath(String fullReportPath) {
+        this.fullReportPath = fullReportPath;
     }
 
     public void doGraph(final StaplerRequest req, final StaplerResponse rsp) throws IOException {
@@ -199,6 +220,7 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
         final FilePath archive = new FilePath(run.getRootDir()).child("archive/allure-report.zip");
         ArchiveReportBrowser archiveReportBrowser = new ArchiveReportBrowser(archive);
         archiveReportBrowser.setReportPath(this.getReportPath());
+        archiveReportBrowser.setFullReportPath(this.getFullReportPath());
         return archiveReportBrowser;
     }
 
@@ -220,6 +242,7 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
         private final FilePath archive;
 
         private String reportPath;
+        private String fullReportPath;
 
         ArchiveReportBrowser(FilePath archive) {
             this.archive = archive;
@@ -229,6 +252,9 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
         private void setReportPath(String reportPath) {
             this.reportPath = reportPath;
         }
+        private void setFullReportPath(String fullReportPath) {
+            this.fullReportPath = fullReportPath;
+        }
 
         @Override
         public void generateResponse(final StaplerRequest req, final StaplerResponse rsp, final Object node)
@@ -237,15 +263,30 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
             rsp.addHeader("Cache-Control", "post-check=0, pre-check=0");
             rsp.setHeader("Pragma", "no-cache");
             rsp.setDateHeader("Expires", 0);
-
             final String path = req.getRestOfPath().isEmpty() ? "/index.html" : req.getRestOfPath();
-            try (ZipFile allureReport = new ZipFile(archive.getRemote())) {
-                final ZipEntry entry = allureReport.getEntry(this.reportPath + path);
-                if (entry != null) {
-                    rsp.serveFile(req, allureReport.getInputStream(entry), -1L, -1L, -1L, entry.getName());
+
+//            try (ZipFile allureReport = new ZipFile(archive.getRemote())) {
+//                final ZipEntry entry = allureReport.getEntry(this.reportPath + path);
+//                if (entry != null) {
+//                    rsp.serveFile(req, allureReport.getInputStream(entry), -1L, -1L, -1L, entry.getName());
+//                } else {
+//                    rsp.sendRedirect("/index.html#404");
+//                }
+//            }
+            Logger logger = Logger.getLogger("INFO");
+            logger.info("generateResponse: path: "+ path);
+            try {
+                File file = new File(this.fullReportPath + path);
+                logger.info("generateResponse: reportPath: "+ this.fullReportPath + path);
+                if (file.exists()) {
+                    logger.info("generateResponse: inside if entryName:"+ file.getName());
+                    rsp.serveFile(req, new FileInputStream(file), -1L, -1L, -1L, file.getName());
                 } else {
+                    logger.info("generateResponse: inside else");
                     rsp.sendRedirect("/index.html#404");
                 }
+            } catch (Exception e) {
+                logger.info("generateResponse: exception"+ e.getMessage());
             }
         }
     }
