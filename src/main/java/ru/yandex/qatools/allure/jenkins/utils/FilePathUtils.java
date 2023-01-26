@@ -10,9 +10,7 @@ import hudson.model.AbstractBuild;
 import hudson.model.Run;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -116,6 +114,47 @@ public final class FilePathUtils {
                 }
             }
         } catch (IOException | InterruptedException ignore) {
+        }
+        return null;
+    }
+
+    public static BuildSummary extractSummary(final FilePath reportPath, PrintStream logger) {
+        logger.println("extractSummary");
+        try {
+            File summary = new File(reportPath.toURI().getPath().concat("export").concat("/summary.json"));
+            if (!summary.exists()) {
+                summary = new File(reportPath.toURI().getPath().concat("widgets").concat("/summary.json"));
+            }
+            logger.println("summary exists: "+ summary.exists() + " filePath: "+ reportPath.toURI().getPath().concat("widgets").concat("/summary.json"));
+            if (summary.exists()) {
+                logger.println("extractSummary: summary exists");
+                try (InputStream is = new FileInputStream(summary)) {
+                    final ObjectMapper mapper = new ObjectMapper();
+                    final JsonNode summaryJson = mapper.readTree(is);
+                    final JsonNode statisticJson = summaryJson.get("statistic");
+                    final Map<String, Integer> statisticsMap = new HashMap<>();
+                    for (String key : BUILD_STATISTICS_KEYS) {
+                        statisticsMap.put(key, statisticJson.get(key).intValue());
+                    }
+                    logger.println("extractSummary: BuildSummary");
+                    return new BuildSummary().withStatistics(statisticsMap);
+                } catch (FileNotFoundException e) {
+                    logger.println("extractSummary: FileNotFoundException");
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    logger.println("extractSummary: IOException");
+                    throw new RuntimeException(e);
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.println("extractSummary: RuntimeException");
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            logger.println("extractSummary: IOException");
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            logger.println("extractSummary: InterruptedException");
+            throw new RuntimeException(e);
         }
         return null;
     }
