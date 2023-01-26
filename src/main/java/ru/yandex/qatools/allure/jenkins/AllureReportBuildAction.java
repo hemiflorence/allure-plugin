@@ -16,6 +16,7 @@ import jenkins.tasks.SimpleBuildStep;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.util.Log;
+import org.jfree.util.StringUtils;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
@@ -37,12 +38,15 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.logging.Logger;
 
+
 /**
  * {@link Action} that serves allure report from archive directory on master of a given build.
  *
  * @author pupssman
  */
 public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, SimpleBuildStep.LastBuildAction {
+    private static final String ENABLE_TRENDS_NAME ="enableTrends";
+
 
     private Run<?, ?> run;
 
@@ -264,29 +268,32 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
             rsp.setHeader("Pragma", "no-cache");
             rsp.setDateHeader("Expires", 0);
             final String path = req.getRestOfPath().isEmpty() ? "/index.html" : req.getRestOfPath();
-
-//            try (ZipFile allureReport = new ZipFile(archive.getRemote())) {
-//                final ZipEntry entry = allureReport.getEntry(this.reportPath + path);
-//                if (entry != null) {
-//                    rsp.serveFile(req, allureReport.getInputStream(entry), -1L, -1L, -1L, entry.getName());
-//                } else {
-//                    rsp.sendRedirect("/index.html#404");
-//                }
-//            }
-            Logger logger = Logger.getLogger("INFO");
-            logger.info("generateResponse: path: "+ path);
-            try {
-                File file = new File(this.fullReportPath + path);
-                logger.info("generateResponse: reportPath: "+ this.fullReportPath + path);
-                if (file.exists()) {
-                    logger.info("generateResponse: inside if entryName:"+ file.getName());
-                    rsp.serveFile(req, new FileInputStream(file), -1L, -1L, -1L, file.getName());
-                } else {
-                    logger.info("generateResponse: inside else");
-                    rsp.sendRedirect("/index.html#404");
+            String enableTrends = System.getProperty(ENABLE_TRENDS_NAME);
+            if ( org.apache.commons.lang.StringUtils.isEmpty(enableTrends) || enableTrends.equals("true")) {//if the trends is enabled then the zip file creation will go through otherwise it will not generate the archive
+                try (ZipFile allureReport = new ZipFile(archive.getRemote())) {
+                    final ZipEntry entry = allureReport.getEntry(this.reportPath + path);
+                    if (entry != null) {
+                        rsp.serveFile(req, allureReport.getInputStream(entry), -1L, -1L, -1L, entry.getName());
+                    } else {
+                        rsp.sendRedirect("/index.html#404");
+                    }
                 }
-            } catch (Exception e) {
-                logger.info("generateResponse: exception"+ e.getMessage());
+            } else {
+                Logger logger = Logger.getLogger("INFO");
+                logger.info("generateResponse: path: " + path);
+                try {
+                    File file = new File(this.fullReportPath + path);
+                    logger.info("generateResponse: reportPath: " + this.fullReportPath + path);
+                    if (file.exists()) {
+                        logger.info("generateResponse: inside if entryName:" + file.getName());
+                        rsp.serveFile(req, new FileInputStream(file), -1L, -1L, -1L, file.getName());
+                    } else {
+                        logger.info("generateResponse: inside else");
+                        rsp.sendRedirect("/index.html#404");
+                    }
+                } catch (Exception e) {
+                    logger.info("generateResponse: exception" + e.getMessage());
+                }
             }
         }
     }

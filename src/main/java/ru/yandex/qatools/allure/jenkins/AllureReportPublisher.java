@@ -1,6 +1,5 @@
 package ru.yandex.qatools.allure.jenkins;
 
-import com.google.common.base.Optional;
 import hudson.EnvVars;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -8,12 +7,7 @@ import hudson.matrix.MatrixAggregatable;
 import hudson.matrix.MatrixAggregator;
 import hudson.matrix.MatrixBuild;
 import hudson.matrix.MatrixRun;
-import hudson.model.AbstractProject;
-import hudson.model.Action;
-import hudson.model.BuildListener;
-import hudson.model.JDK;
-import hudson.model.Run;
-import hudson.model.TaskListener;
+import hudson.model.*;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Recorder;
 import jenkins.model.Jenkins;
@@ -36,18 +30,8 @@ import ru.yandex.qatools.allure.jenkins.utils.TrueZipArchiver;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -65,6 +49,7 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
     private static final String ALLURE_PREFIX = "allure";
     private static final String ALLURE_SUFFIX = "results";
     private static final String REPORT_ARCHIVE_NAME = "allure-report.zip";
+    private static final String ENABLE_TRENDS_NAME ="enableTrends";
 
     private AllureReportConfig config;
 
@@ -315,27 +300,45 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         }
         listener.getLogger().println("Allure report was successfully generated.");
         saveAllureArtifact(run, workspace, listener);
-        AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(reportPath, listener.getLogger()), reportPath.toURI().getPath()); //FilePathUtils.extractSummary(reportPath, listener.getLogger())
-        buildAction.setReportPath(reportPath);
-        run.addAction(buildAction);
-        run.setResult(buildAction.getBuildSummary().getResult());
+        String enableTrends = System.getProperty(ENABLE_TRENDS_NAME);
+
+        if(StringUtils.isEmpty(enableTrends)||enableTrends.equals("true")){
+            AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(run, reportPath.getName()));
+            buildAction.setReportPath(reportPath);
+            run.addAction(buildAction);
+            run.setResult(buildAction.getBuildSummary().getResult());
+        }
+        else{
+            AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(reportPath, listener.getLogger()), reportPath.toURI().getPath()); //FilePathUtils.extractSummary(reportPath, listener.getLogger())
+            buildAction.setReportPath(reportPath);
+            run.addAction(buildAction);
+            run.setResult(buildAction.getBuildSummary().getResult());
+        }
+
     }
 
     private void saveAllureArtifact(final Run<?, ?> run, final FilePath workspace, final TaskListener listener)
             throws IOException, InterruptedException {
-        listener.getLogger().println("Creating artifact for the build.");
-        final File artifactsDir = run.getArtifactsDir();
-        artifactsDir.mkdirs();
-        listener.getLogger().println("");
-        final File archive = new File(artifactsDir, REPORT_ARCHIVE_NAME);
-        final File tempArchive = new File(archive.getAbsolutePath() + ".writing.zip");
-        final FilePath reportPath = workspace.child(getReport());
+        String enableTrends = System.getProperty(ENABLE_TRENDS_NAME);
+        if(StringUtils.isEmpty(enableTrends) || enableTrends.equals("true")){//if the trends is enabled then the zip file creation will go through otherwise it will not generate the archive
+            listener.getLogger().println("Creating artifact for the build.");
+            final File artifactsDir = run.getArtifactsDir();
+            artifactsDir.mkdirs();
+            listener.getLogger().println("");
+            final File archive = new File(artifactsDir, REPORT_ARCHIVE_NAME);
+            final File tempArchive = new File(archive.getAbsolutePath() + ".writing.zip");
+            final FilePath reportPath = workspace.child(getReport());
 
-        try (OutputStream os = new FileOutputStream(tempArchive)) {
-            reportPath.getParent().archive(TrueZipArchiver.FACTORY, os, reportPath.getName() + "/**");
+            try (OutputStream os = new FileOutputStream(tempArchive)) {
+                reportPath.getParent().archive(TrueZipArchiver.FACTORY, os, reportPath.getName() + "/**");
+            }
+            tempArchive.renameTo(archive);
+            listener.getLogger().println("Artifact was added to the build.");
         }
-        tempArchive.renameTo(archive);
-        listener.getLogger().println("Artifact was added to the build.");
+        else {
+            listener.getLogger().println("Not generated the artifact as the trends is being disabled ");
+
+        }
     }
 
     private AllureCommandlineInstallation getCommandline(
