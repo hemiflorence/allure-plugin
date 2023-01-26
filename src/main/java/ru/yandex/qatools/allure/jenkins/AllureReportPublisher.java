@@ -300,7 +300,9 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         }
         listener.getLogger().println("Allure report was successfully generated.");
         String enableTrends = buildEnvVars.get(ENABLE_TRENDS_NAME);
-        System.setProperty(ENABLE_TRENDS_NAME, enableTrends);
+        if(!StringUtils.isEmpty(enableTrends)) {
+            System.setProperty(ENABLE_TRENDS_NAME, enableTrends);
+        }
         if(StringUtils.isEmpty(enableTrends)||enableTrends.equals("true")){
             saveAllureArtifact(run, workspace, listener);
             AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(run, reportPath.getName()));
