@@ -37,7 +37,7 @@ import java.util.zip.ZipFile;
  * @author pupssman
  */
 public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, SimpleBuildStep.LastBuildAction {
-    private static final String ENABLE_TRENDS_NAME ="enableTrends";
+    private static final String ENABLE_TRENDS_NAME = "enableTrends";
 
 
     private Run<?, ?> run;
@@ -48,15 +48,18 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
 
     private String fullReportPath;
 
+    private String enableTrends;
+
     AllureReportBuildAction(final BuildSummary buildSummary) {
         this.buildSummary = new WeakReference<>(buildSummary);
         this.reportPath = "allure-report";
     }
 
-    AllureReportBuildAction(final BuildSummary buildSummary, String fullReportPath) {
+    AllureReportBuildAction(final BuildSummary buildSummary, String fullReportPath, String enableTrends) {
         this.buildSummary = new WeakReference<>(buildSummary);
         this.reportPath = "allure-report";
         this.fullReportPath = fullReportPath;
+        this.enableTrends = enableTrends;
     }
 
     private String getReportPath() {
@@ -70,8 +73,17 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
     private String getFullReportPath() {
         return this.fullReportPath == null ? "allure-report" : this.fullReportPath;
     }
+
     public void setFullReportPath(String fullReportPath) {
         this.fullReportPath = fullReportPath;
+    }
+
+    private String getEnableTrends() {
+        return this.enableTrends == null ? "true" : this.enableTrends;
+    }
+
+    public void setEnableTrends(String enableTrends) {
+        this.enableTrends = enableTrends;
     }
 
     public void doGraph(final StaplerRequest req, final StaplerResponse rsp) throws IOException {
@@ -183,7 +195,7 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
     //copied from junit-plugin
     @Override
     public Collection<? extends Action> getProjectActions() {
-        Job<?,?> job = run.getParent();
+        Job<?, ?> job = run.getParent();
         if (/* getAction(Class) produces a StackOverflowError */!Util.filter(job.getActions(), AllureReportProjectAction.class).isEmpty()) {
             // JENKINS-26077: someone like XUnitPublisher already added one
             return Collections.emptySet();
@@ -217,6 +229,7 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
         ArchiveReportBrowser archiveReportBrowser = new ArchiveReportBrowser(archive);
         archiveReportBrowser.setReportPath(this.getReportPath());
         archiveReportBrowser.setFullReportPath(this.getFullReportPath());
+        archiveReportBrowser.setEnableTrends(this.getEnableTrends());
         return archiveReportBrowser;
     }
 
@@ -239,6 +252,7 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
 
         private String reportPath;
         private String fullReportPath;
+        private String enableTrends;
 
         ArchiveReportBrowser(FilePath archive) {
             this.archive = archive;
@@ -248,8 +262,13 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
         private void setReportPath(String reportPath) {
             this.reportPath = reportPath;
         }
+
         private void setFullReportPath(String fullReportPath) {
             this.fullReportPath = fullReportPath;
+        }
+
+        private void setEnableTrends(String enableTrends) {
+            this.enableTrends = enableTrends;
         }
 
         @Override
@@ -259,9 +278,9 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
             rsp.addHeader("Cache-Control", "post-check=0, pre-check=0");
             rsp.setHeader("Pragma", "no-cache");
             rsp.setDateHeader("Expires", 0);
+            Logger logger = Logger.getLogger("INFO");
             final String path = req.getRestOfPath().isEmpty() ? "/index.html" : req.getRestOfPath();
-            String enableTrends = System.getProperty(ENABLE_TRENDS_NAME);
-            if ( org.apache.commons.lang.StringUtils.isEmpty(enableTrends) || enableTrends.equals("true")) {//if the trends is enabled then the zip file creation will go through otherwise it will not generate the archive
+            if (org.apache.commons.lang.StringUtils.isEmpty(this.enableTrends) || this.enableTrends.equals("true")) {//if the trends is enabled then the zip file creation will go through otherwise it will not generate the archive
                 try (ZipFile allureReport = new ZipFile(archive.getRemote())) {
                     final ZipEntry entry = allureReport.getEntry(this.reportPath + path);
                     if (entry != null) {
@@ -271,19 +290,16 @@ public class AllureReportBuildAction implements BuildBadgeAction, RunAction2, Si
                     }
                 }
             } else {
-                Logger logger = Logger.getLogger("INFO");
                 try {
                     File file = new File(this.fullReportPath + path);
                     if (file.exists()) {
-                        logger.info("generateResponse: inside if entryName:" + file.getName());
                         rsp.serveFile(req, new FileInputStream(file), -1L, -1L, -1L, file.getName());
                     } else {
                         rsp.sendRedirect("/index.html#404");
                     }
                 } catch (Exception e) {
-                    logger.info("generateResponse: exception" + e.getMessage());
                 }
-              logger.info("Generated the build action successfully");
+                logger.info("Generated the build action successfully");
             }
         }
     }
