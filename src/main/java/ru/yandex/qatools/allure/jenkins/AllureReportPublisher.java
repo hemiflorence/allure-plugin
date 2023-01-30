@@ -287,36 +287,52 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         configureJdk(launcher, listener, buildEnvVars);
         final AllureCommandlineInstallation commandline = getCommandline(launcher, listener, buildEnvVars);
 
-        final FilePath reportPath = workspace.child(getReport());
-        final ReportBuilder builder = new ReportBuilder(launcher, listener, workspace, buildEnvVars, commandline);
-        if (getConfigPath() != null && workspace.child(getConfigPath()).exists()) {
-            final FilePath configFilePath = workspace.child(getConfigPath()).absolutize();
-            listener.getLogger().println("Allure config file: " + configFilePath.absolutize());
-            builder.setConfigFilePath(configFilePath);
-        }
-        final int exitCode = builder.build(resultsPaths, reportPath);
-        if (exitCode != 0) {
-            throw new AllurePluginException("Can not generate Allure Report, exit code: " + exitCode);
-        }
-        listener.getLogger().println("Allure report was successfully generated.");
+        System.setProperty(ENABLE_TRENDS_NAME, "true");
         String enableTrends = buildEnvVars.get(ENABLE_TRENDS_NAME);
         if(!StringUtils.isEmpty(enableTrends)) {
             System.setProperty(ENABLE_TRENDS_NAME, enableTrends);
         }
-        if(StringUtils.isEmpty(enableTrends)||enableTrends.equals("true")){
+        if(StringUtils.isEmpty(enableTrends)||enableTrends.equals("true")) {
+            final FilePath reportPath = workspace.child(getReport());
+            final ReportBuilder builder = new ReportBuilder(launcher, listener, workspace, buildEnvVars, commandline);
+            if (getConfigPath() != null && workspace.child(getConfigPath()).exists()) {
+                final FilePath configFilePath = workspace.child(getConfigPath()).absolutize();
+                listener.getLogger().println("Allure config file: " + configFilePath.absolutize());
+                builder.setConfigFilePath(configFilePath);
+            }
+            final int exitCode = builder.build(resultsPaths, reportPath);
+            if (exitCode != 0) {
+                throw new AllurePluginException("Can not generate Allure Report, exit code: " + exitCode);
+            }
+            listener.getLogger().println("Allure report was successfully generated.");
+
             saveAllureArtifact(run, workspace, listener);
             AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(run, reportPath.getName()));
             buildAction.setReportPath(reportPath);
             run.addAction(buildAction);
             run.setResult(buildAction.getBuildSummary().getResult());
         }
-        else{
-            AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(reportPath, listener.getLogger()), reportPath.toURI().getPath()); //FilePathUtils.extractSummary(reportPath, listener.getLogger())
+        else {
+            File reportFile = new File(run.getRootDir().toURI().getPath() + getReport());
+            reportFile.mkdirs();
+            final FilePath reportPath = new FilePath(reportFile);
+            final ReportBuilder builder = new ReportBuilder(launcher, listener, workspace, buildEnvVars, commandline);
+            if (getConfigPath() != null && workspace.child(getConfigPath()).exists()) {
+                final FilePath configFilePath = workspace.child(getConfigPath()).absolutize();
+                listener.getLogger().println("Allure config file: " + configFilePath.absolutize());
+                builder.setConfigFilePath(configFilePath);
+            }
+            final int exitCode = builder.build(resultsPaths, reportPath);
+            if (exitCode != 0) {
+                throw new AllurePluginException("Can not generate Allure Report, exit code: " + exitCode);
+            }
+            listener.getLogger().println("Allure report was successfully generated.");
+
+            AllureReportBuildAction buildAction = new AllureReportBuildAction(FilePathUtils.extractSummary(reportPath, listener.getLogger()), reportPath.toURI().getPath(), enableTrends); //FilePathUtils.extractSummary(reportPath, listener.getLogger())
             buildAction.setReportPath(reportPath);
             run.addAction(buildAction);
             run.setResult(buildAction.getBuildSummary().getResult());
         }
-
     }
 
     private void saveAllureArtifact(final Run<?, ?> run, final FilePath workspace, final TaskListener listener)
