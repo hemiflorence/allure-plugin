@@ -287,11 +287,7 @@ public class AllureReportPublisher extends Recorder implements SimpleBuildStep, 
         configureJdk(launcher, listener, buildEnvVars);
         final AllureCommandlineInstallation commandline = getCommandline(launcher, listener, buildEnvVars);
 
-        System.setProperty(ENABLE_TRENDS_NAME, "true");
         String enableTrends = buildEnvVars.get(ENABLE_TRENDS_NAME);
-        if(!StringUtils.isEmpty(enableTrends)) {
-            System.setProperty(ENABLE_TRENDS_NAME, enableTrends);
-        }
         if(StringUtils.isEmpty(enableTrends)||enableTrends.equals("true")) {
             final FilePath reportPath = workspace.child(getReport());
             final ReportBuilder builder = new ReportBuilder(launcher, listener, workspace, buildEnvVars, commandline);
